@@ -4,7 +4,7 @@
 
 ## 📖 参照文档
 
-**详细配置文档**：[OpenClaw 配置指南](https://icnc5d4v520o.feishu.cn/docx/S6CBdDmNQoQeBixPhsbcR3d8nob?from=from_copylink)
+**详细配置文档**：[OpenClaw 配置指南](https://icnc5d4v520o.feishu.cn/docx/S6CBdDmMQoQeBixPhsbcR3d8nob?from=from_copylink)
 
 ---
 
