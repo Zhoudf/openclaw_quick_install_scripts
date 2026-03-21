@@ -1,18 +1,10 @@
 @echo off
-chcp 437 >nul
 setlocal enabledelayedexpansion
 
 :: ============================================================
 :: Windows WSL + Ubuntu 24.04 Auto Installation Script
 :: ============================================================
-:: Author: AI 大玩家 Eddie
-:: WeChat: dev_eddie
-:: ============================================================
-:: This script will:
-:: 1. Enable WSL feature
-:: 2. Enable Virtual Machine Platform feature
-:: 3. Install WSL 2
-:: 4. Install Ubuntu 24.04 LTS
+:: Author: Eddie
 :: ============================================================
 
 echo.
@@ -36,13 +28,6 @@ if %errorLevel% neq 0 (
 
 echo [OK] Running as administrator
 echo.
-
-:: Check Windows version
-echo [Info] Checking Windows version...
-wmic os get Caption, Version | findstr /i "windows" >nul
-if %errorLevel% neq 0 (
-    echo [Warning] Unable to detect Windows version, continuing...
-)
 
 :: Step 1: Enable WSL feature
 echo ------------------------------------------------------------
@@ -81,42 +66,39 @@ echo [Info] Downloading WSL2 kernel installer...
 :: Check system architecture
 wmic os get osarchitecture | findstr /i "64" >nul
 if %errorLevel% equ 0 (
-    :: Try China mirror first for faster download in mainland China
-    set "WSL_URL_CN=https://aka.ms/wslkernelupdate64"
-    set "WSL_URL=https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi"
+    set "WSLInstaller=%TEMP%\wsl_update_x64.msi"
     echo [Info] Detected 64-bit system
 ) else (
-    set "WSL_URL_CN=https://aka.ms/wslkernelupdatearm64"
-    set "WSL_URL=https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_arm64.msi"
+    set "WSLInstaller=%TEMP%\wsl_update_arm64.msi"
     echo [Info] Detected ARM64 system
 )
 
-:: Download WSL update package
-set "TEMP_DIR=%TEMP%\wsl_install"
-if not exist "%TEMP_DIR%" mkdir "%TEMP_DIR%"
-set "WSLInstaller=%TEMP_DIR%\wsl_update.msi"
-
 echo [Info] Option 1: Download from Microsoft CDN (default)
-echo [Info] Option 2: Download from China mirror (recommended for mainland China)
+echo [Info] Option 2: Download from China mirror (recommended for China)
 echo [Info] Option 3: Skip download (manually install later)
 set /p DOWNLOAD_CHOICE="Choose download source (1/2/3, default=2): "
 
-if "!DOWNLOAD_CHOICE!"=="1" (
-    echo [Info] Downloading from Microsoft CDN...
-    powershell -Command "& {Invoke-WebRequest -Uri '%WSL_URL%' -OutFile '%WSLInstaller%' -UseBasicParsing}"
-) else if "!DOWNLOAD_CHOICE!"=="3" (
-    echo [Info] Skipping WSL kernel download...
-    goto :SKIP_WSL_KERNEL
-) else (
-    echo [Info] Downloading from China mirror (aka.ms)...
-    powershell -Command "& {Invoke-WebRequest -Uri '%WSL_URL_CN%' -OutFile '%WSLInstaller%' -UseBasicParsing}"
-    if not exist "%WSLInstaller%" (
-        echo [Warning] China mirror failed, trying Microsoft CDN...
-        powershell -Command "& {Invoke-WebRequest -Uri '%WSL_URL%' -OutFile '%WSLInstaller%' -UseBasicParsing}"
-    )
+if "%DOWNLOAD_CHOICE%"=="3" goto SKIP_WSL_KERNEL
+if "%DOWNLOAD_CHOICE%"=="1" goto DOWNLOAD_MICROSOFT
+
+echo [Info] Downloading from China mirror (aka.ms)...
+powershell -Command "Invoke-WebRequest -Uri 'https://aka.ms/wslkernelupdate64' -OutFile '%WSLInstaller%' -UseBasicParsing"
+if not exist "%WSLInstaller%" (
+    echo [Warning] China mirror failed, trying Microsoft CDN...
+    goto DOWNLOAD_MICROSOFT
 )
+goto INSTALL_WSL
+
+:DOWNLOAD_MICROSOFT
+echo [Info] Downloading from Microsoft CDN...
+powershell -Command "Invoke-WebRequest -Uri 'https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi' -OutFile '%WSLInstaller%' -UseBasicParsing"
+goto INSTALL_WSL
 
 :SKIP_WSL_KERNEL
+echo [Info] Skipping WSL kernel download...
+goto CONTINUE_INSTALL
+
+:INSTALL_WSL
 if exist "%WSLInstaller%" (
     echo [Info] Download complete, installing...
     msiexec /i "%WSLInstaller%" /quiet /norestart
@@ -124,6 +106,8 @@ if exist "%WSLInstaller%" (
 ) else (
     echo [Warning] Download failed, will try wsl --install command...
 )
+
+:CONTINUE_INSTALL
 echo.
 
 :: Step 4: Set WSL default version to 2
@@ -144,24 +128,37 @@ if %errorLevel% equ 0 (
 )
 
 echo.
-echo [Info] Starting Ubuntu 24.04 LTS installation...
+echo [Info] Installing Ubuntu LTS...
 echo [Note] This may take a few minutes, please be patient...
 echo.
 
-:: Install Ubuntu 24.04
-wsl --install -d Ubuntu-24.04 --no-launch
+:: Method 1: Try installing from Microsoft Store using winget
+echo [Info] Trying winget installation method...
+winget install --id Canonical.Ubuntu -e --silent --accept-package-agreements --accept-source-agreements 2>nul
 if %errorLevel% equ 0 (
-    echo [OK] Ubuntu 24.04 installed successfully!
-) else (
-    echo [Warning] Automatic installation may have failed, trying alternative method...
-    echo [Info] Using wsl --install default installation...
-    wsl --install
-    if %errorLevel% equ 0 (
-        echo [OK] Ubuntu installed successfully!
-    ) else (
-        echo [Warning] Installation may be complete, please check manually
-    )
+    echo [OK] Ubuntu installed successfully via winget!
+    goto LAUGH_CHECK
 )
+
+:: Method 2: Try wsl --install with distribution name (use "Ubuntu" not "Ubuntu-24.04")
+echo [Info] Trying wsl --install method...
+wsl --install --distribution Ubuntu 2>nul
+if %errorLevel% equ 0 (
+    echo [OK] Ubuntu installed successfully!
+    goto LAUGH_CHECK
+)
+
+:: Method 3: List available distributions and install
+echo [Info] Checking available distributions...
+wsl --list --online
+echo.
+echo [Info] If Ubuntu-24.04 is listed above, run manually:
+echo        wsl --install -d Ubuntu-24.04
+echo.
+echo [Info] Or install from Microsoft Store:
+echo        https://aka.ms/wslstore
+
+:LAUGH_CHECK
 echo.
 echo [Verify] Checking installation status...
 wsl --list --verbose
@@ -170,11 +167,12 @@ echo ============================================================
 echo   Installation Complete!
 echo ============================================================
 echo.
-echo [OK] WSL and Ubuntu 24.04 have been successfully installed
+echo [OK] WSL 2 has been set up successfully
 echo.
 echo [Next Steps]
-echo 1. First time launching Ubuntu requires setting username and password
-echo 2. After launch, continue installing Node.js and OpenClaw
+echo 1. If Ubuntu is listed above, launch it to complete setup
+echo 2. First launch requires setting username and password
+echo 3. After setup, continue installing Node.js and OpenClaw
 echo.
 echo [Methods to Launch Ubuntu]
 echo - Method 1: Search "Ubuntu" in Start menu
@@ -183,6 +181,7 @@ echo - Method 3: Run in command line: wsl
 echo.
 echo [Useful Commands]
 echo - wsl --list --verbose    List installed Linux distributions
+echo - wsl --list --online     Show available distributions
 echo - wsl --shutdown          Shutdown all WSL instances
 echo - wsl --help              View WSL help
 echo.
